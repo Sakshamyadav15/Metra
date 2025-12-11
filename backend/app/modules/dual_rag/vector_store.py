@@ -6,7 +6,6 @@ ChromaDB integration for semantic search
 import os
 from typing import List, Dict, Any, Optional
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 from app.core.config import settings
 
@@ -24,12 +23,10 @@ class VectorStoreService:
     
     def __init__(self):
         if self._client is None:
-            # Initialize ChromaDB client
-            self._client = chromadb.Client(ChromaSettings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=settings.chroma_persist_directory,
-                anonymized_telemetry=False
-            ))
+            # Initialize ChromaDB client with new API
+            self._client = chromadb.PersistentClient(
+                path=settings.chroma_persist_directory
+            )
             
             # Initialize collections
             self._student_collection = self._client.get_or_create_collection(

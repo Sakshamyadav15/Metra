@@ -19,16 +19,16 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./skilltwin.db"
     
-    # OpenAI
-    openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-4-turbo-preview"
-    openai_embedding_model: str = "text-embedding-3-small"
+    # Google Gemini
+    gemini_api_key: Optional[str] = None
+    gemini_model: str = "gemini-2.0-flash"
     
     # ChromaDB
     chroma_persist_directory: str = "./chroma_db"
     
     # JWT Authentication
     secret_key: str = "your-secret-key-change-in-production"
+    jwt_secret_key: str = "your-jwt-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     
@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 @lru_cache()

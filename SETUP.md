@@ -112,7 +112,7 @@ Before starting, ensure you have:
 - **Python** 3.11 or higher
 - **Node.js** 18.x or higher
 - **npm** 9.x or higher
-- **OpenAI API Key** (for AI features)
+- **Google Gemini API Key** (for AI features)
 
 To verify installations:
 ```powershell
@@ -148,8 +148,7 @@ pip install -r requirements.txt
 # Create .env file from template
 Copy-Item .env.example .env
 
-# Open .env and add your OpenAI API key
-notepad .env
+# The .env file already has the Gemini API key configured
 ```
 
 ### Step 3: Configure Backend Environment
@@ -164,8 +163,8 @@ SECRET_KEY=change-this-to-a-random-secret-key
 # Database (SQLite for development)
 DATABASE_URL=sqlite+aiosqlite:///./skilltwin.db
 
-# OpenAI API - REQUIRED!
-OPENAI_API_KEY=sk-your-openai-api-key-here
+# Google Gemini API - REQUIRED!
+GEMINI_API_KEY=your-gemini-api-key-here
 
 # ChromaDB Vector Store
 CHROMA_PERSIST_DIRECTORY=./chroma_db
@@ -257,7 +256,7 @@ Once the backend is running, access interactive docs at http://localhost:8000/do
 | Module | Status | Implementation |
 |--------|--------|----------------|
 | 3.1 LTP | ✅ Complete | Full SM-2 algorithm, 20+ endpoints |
-| 3.2 Dual RAG | ✅ Complete | ChromaDB + OpenAI integration |
+| 3.2 Dual RAG | ✅ Complete | ChromaDB + Gemini 2.0 Flash integration |
 | 3.3 Micro Lessons | 🔶 Mock | Endpoints with mock responses |
 | 3.4 Speech | ⏳ Placeholder | Ready for implementation |
 | 3.5 Integrity | ⏳ Placeholder | Ready for implementation |
@@ -290,10 +289,10 @@ taskkill /PID <PID> /F
 pip install -r requirements.txt
 ```
 
-#### 4. OpenAI API Errors
+#### 4. Gemini API Errors
 - Verify your API key is correct in `.env` file
-- Ensure the API key has sufficient credits
-- Check you're using the correct key format: `sk-...`
+- Ensure the API key is active in Google AI Studio
+- Check you're using the correct key format: `AIzaSy...`
 
 #### 5. ChromaDB Errors
 ```powershell

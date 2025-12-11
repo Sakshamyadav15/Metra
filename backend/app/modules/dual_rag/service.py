@@ -34,12 +34,12 @@ from app.modules.dual_rag.vector_store import VectorStoreService, get_vector_sto
 from app.modules.ltp.service import LTPService
 from app.core.config import settings
 
-# Optional: Import OpenAI for LLM calls
+# Optional: Import Google Gemini for LLM calls
 try:
-    from openai import AsyncOpenAI
-    OPENAI_AVAILABLE = True
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    GEMINI_AVAILABLE = False
 
 
 class DualRAGService:
@@ -53,10 +53,11 @@ class DualRAGService:
         self.vector_store = vector_store or get_vector_store()
         self.ltp_service = LTPService(db)
         
-        # Initialize OpenAI client if available
-        self.openai_client = None
-        if OPENAI_AVAILABLE and settings.openai_api_key:
-            self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Initialize Gemini client if available
+        self.gemini_model = None
+        if GEMINI_AVAILABLE and settings.gemini_api_key:
+            genai.configure(api_key=settings.gemini_api_key)
+            self.gemini_model = genai.GenerativeModel(settings.gemini_model)
     
     # ============ Student Context Operations ============
     
@@ -329,46 +330,42 @@ class DualRAGService:
         # Simple keyword-based gap detection (can be enhanced with LLM)
         # For now, we'll return empty list - this would be enhanced with actual LLM analysis
         
-        if self.openai_client:
+        if self.gemini_model:
             # Build prompts for gap analysis
             student_text = "\n".join([c.content for c in student_contexts[:3]])
             academic_text = "\n".join([c.content for c in academic_contexts[:3]])
             
             try:
-                response = await self.openai_client.chat.completions.create(
-                    model=settings.openai_model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": """You are an educational analyst. Compare the student's understanding 
-                            with the academic sources and identify any misconceptions or gaps.
-                            Return a JSON array of gaps, each with:
-                            - concept_name: the concept with the gap
-                            - student_understanding: what the student seems to believe
-                            - correct_understanding: what the academic source states
-                            - gap_description: brief description of the discrepancy
-                            - severity: "minor", "moderate", "significant", or "critical"
-                            If no gaps found, return empty array []."""
-                        },
-                        {
-                            "role": "user",
-                            "content": f"""Query: {query}
-                            
+                prompt = f"""You are an educational analyst. Compare the student's understanding 
+with the academic sources and identify any misconceptions or gaps.
+Return a JSON object with a "gaps" array, each gap having:
+- concept_name: the concept with the gap
+- student_understanding: what the student seems to believe
+- correct_understanding: what the academic source states
+- gap_description: brief description of the discrepancy
+- severity: "minor", "moderate", "significant", or "critical"
+If no gaps found, return {{"gaps": []}}
+
+Query: {query}
+
 Student's context/history:
 {student_text}
 
 Academic sources:
 {academic_text}
 
-Identify gaps between student understanding and academic truth."""
-                        }
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.3
+Identify gaps between student understanding and academic truth. Return ONLY valid JSON."""
+
+                response = await self.gemini_model.generate_content_async(
+                    prompt,
+                    generation_config=genai.GenerationConfig(
+                        temperature=0.3,
+                        response_mime_type="application/json"
+                    )
                 )
                 
                 import json
-                result = json.loads(response.choices[0].message.content)
+                result = json.loads(response.text)
                 gaps = result.get("gaps", [])
                 
                 # Save detected gaps to database
@@ -422,15 +419,10 @@ Identify gaps between student understanding and academic truth."""
         
         modality_guide = modality_instructions.get(modality, modality_instructions["visual"])
         
-        if self.openai_client:
+        if self.gemini_model:
             try:
-                response = await self.openai_client.chat.completions.create(
-                    model=settings.openai_model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": f"""You are SkillTwin, an adaptive AI personal mentor. 
-                            
+                prompt = f"""You are SkillTwin, an adaptive AI personal mentor. 
+
 Your task is to answer the student's question using both their personal learning history 
 and verified academic sources. Personalize your explanation based on their learning style.
 
@@ -442,11 +434,9 @@ Guidelines:
 2. Use academic sources for accuracy and cite them
 3. Address any misconceptions gently
 4. Keep explanations clear and at the appropriate level
-5. End with a thought-provoking question or next step"""
-                        },
-                        {
-                            "role": "user",
-                            "content": f"""Student's Question: {query}
+5. End with a thought-provoking question or next step
+
+Student's Question: {query}
 
 Student's Learning History:
 {student_text}
@@ -458,12 +448,13 @@ Known Gaps/Misconceptions to Address:
 {gaps if gaps else "None detected"}
 
 Please provide a personalized explanation."""
-                        }
-                    ],
-                    temperature=0.7
+
+                response = await self.gemini_model.generate_content_async(
+                    prompt,
+                    generation_config=genai.GenerationConfig(temperature=0.7)
                 )
                 
-                answer = response.choices[0].message.content
+                answer = response.text
                 confidence = 0.85  # Could be calculated based on source quality
                 
                 return answer, confidence
