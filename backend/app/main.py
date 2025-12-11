@@ -30,8 +30,6 @@ from app.modules.micro_lessons.models import MicroLesson  # noqa: F401
 # Import routers
 from app.modules.ltp.routes import router as ltp_router
 from app.modules.dual_rag.routes import router as dual_rag_router
-from app.modules.ltp.routes import router as ltp_router
-from app.modules.dual_rag.routes import router as dual_rag_router
 from app.modules.micro_lessons.routes import router as micro_lessons_router
 from app.modules.speech_assessment.routes import router as speech_router
 from app.modules.integrity.routes import router as integrity_router
