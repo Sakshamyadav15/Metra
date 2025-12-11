@@ -10,6 +10,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import init_db
 
+# Import all models to register them with SQLAlchemy
+from app.models.user import User  # noqa: F401
+from app.modules.ltp.models import (  # noqa: F401
+    LearningTwinProfile,
+    Concept,
+    ConceptMastery,
+    Misconception,
+    LearningSession
+)
+from app.modules.dual_rag.models import (  # noqa: F401
+    StudentContext,
+    AcademicDocument,
+    ChatHistory,
+    GapAnalysis
+)
+from app.modules.micro_lessons.models import MicroLesson  # noqa: F401
+
 # Import routers
 from app.modules.ltp.routes import router as ltp_router
 from app.modules.dual_rag.routes import router as dual_rag_router

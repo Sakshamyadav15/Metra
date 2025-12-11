@@ -1,116 +1,235 @@
-import axios from 'axios';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+class ApiClient {
+  private baseUrl: string;
 
-export const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl;
+  }
 
-// LTP API
-export const ltpApi = {
-  // Profile
-  createProfile: (userId: string) => api.post(`/ltp/profiles/${userId}`),
-  getProfile: (userId: string) => api.get(`/ltp/profiles/user/${userId}`),
-  updateProfile: (profileId: string, data: any) => api.patch(`/ltp/profiles/${profileId}`, data),
-  
-  // Concepts
-  getConcepts: (subject?: string) => api.get('/ltp/concepts', { params: { subject } }),
-  createConcept: (data: any) => api.post('/ltp/concepts', data),
-  
-  // Masteries
-  getMasteries: (profileId: string) => api.get(`/ltp/profiles/${profileId}/masteries`),
-  updateMastery: (profileId: string, conceptId: string, data: any) => 
-    api.post(`/ltp/profiles/${profileId}/masteries/${conceptId}`, data),
-  getDueForReview: (profileId: string) => api.get(`/ltp/profiles/${profileId}/due-for-review`),
-  
-  // Misconceptions
-  getMisconceptions: (profileId: string) => api.get(`/ltp/profiles/${profileId}/misconceptions`),
-  createMisconception: (profileId: string, data: any) => 
-    api.post(`/ltp/profiles/${profileId}/misconceptions`, data),
-  resolveMisconception: (misconceptionId: string, data: any) => 
-    api.patch(`/misconceptions/${misconceptionId}`, data),
-  
-  // Sessions
-  startSession: (profileId: string, data: any) => api.post(`/ltp/profiles/${profileId}/sessions`, data),
-  endSession: (sessionId: string, data: any) => api.patch(`/ltp/sessions/${sessionId}`, data),
-  
-  // Analytics
-  getAnalytics: (profileId: string) => api.get(`/ltp/profiles/${profileId}/analytics`),
-  getKnowledgeGraph: (profileId: string) => api.get(`/ltp/profiles/${profileId}/knowledge-graph`),
-  
-  // Modality
-  getPreferredModality: (profileId: string) => api.get(`/ltp/profiles/${profileId}/preferred-modality`),
-  updateModalityFeedback: (profileId: string, modality: string, success: boolean) =>
-    api.post(`/ltp/profiles/${profileId}/modality-feedback`, null, { params: { modality, success } }),
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    const config: RequestInit = {
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    const response = await fetch(url, config);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // LTP Module (3.1) - Learning Twin Profile
+  ltp = {
+    getProfile: (userId: string) =>
+      this.request<LearningTwinProfile>(`/api/ltp/profile/${userId}`),
+    
+    createProfile: (userId: string, data: CreateProfileData) =>
+      this.request<LearningTwinProfile>(`/api/ltp/profile/${userId}`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    getConcepts: (userId: string) =>
+      this.request<ConceptMastery[]>(`/api/ltp/profile/${userId}/concepts`),
+
+    updateMastery: (userId: string, conceptId: string, data: UpdateMasteryData) =>
+      this.request<ConceptMastery>(
+        `/api/ltp/profile/${userId}/concepts/${conceptId}/mastery`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        }
+      ),
+
+    getMisconceptions: (userId: string) =>
+      this.request<Misconception[]>(`/api/ltp/profile/${userId}/misconceptions`),
+
+    getReviewSchedule: (userId: string) =>
+      this.request<ReviewSchedule>(`/api/ltp/profile/${userId}/review-schedule`),
+
+    recordSession: (userId: string, data: SessionData) =>
+      this.request<LearningSession>(`/api/ltp/profile/${userId}/sessions`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  };
+
+  // Dual RAG Module (3.2) - Personalized Reasoning
+  dualRag = {
+    chat: (userId: string, message: string) =>
+      this.request<ChatResponse>(`/api/dual-rag/chat`, {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, message }),
+      }),
+
+    getGaps: (userId: string) =>
+      this.request<GapAnalysis[]>(`/api/dual-rag/gaps/${userId}`),
+
+    analyzeGaps: (userId: string) =>
+      this.request<GapAnalysis>(`/api/dual-rag/analyze-gaps/${userId}`, {
+        method: "POST",
+      }),
+
+    addDocument: (data: AddDocumentData) =>
+      this.request<AcademicDocument>(`/api/dual-rag/documents`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    searchDocuments: (query: string, topK?: number) =>
+      this.request<SearchResult[]>(
+        `/api/dual-rag/documents/search?query=${encodeURIComponent(query)}${topK ? `&top_k=${topK}` : ""}`
+      ),
+  };
+
+  // Micro Lessons Module (3.3) - Mock for now
+  microLessons = {
+    getLessons: (userId: string) =>
+      this.request<MicroLesson[]>(`/api/micro-lessons/${userId}`),
+
+    getLesson: (lessonId: string) =>
+      this.request<MicroLesson>(`/api/micro-lessons/lesson/${lessonId}`),
+
+    generateLesson: (userId: string, conceptId: string) =>
+      this.request<MicroLesson>(`/api/micro-lessons/generate`, {
+        method: "POST",
+        body: JSON.stringify({ user_id: userId, concept_id: conceptId }),
+      }),
+  };
+}
+
+// Types
+interface LearningTwinProfile {
+  id: string;
+  user_id: string;
+  overall_mastery: number;
+  learning_velocity: number;
+  cognitive_state: string;
+  total_learning_time: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreateProfileData {
+  preferred_learning_style?: string;
+  goals?: string[];
+}
+
+interface ConceptMastery {
+  id: string;
+  concept_id: string;
+  concept_name: string;
+  mastery_level: number;
+  ease_factor: number;
+  review_interval: number;
+  last_reviewed: string;
+  next_review: string;
+  repetitions: number;
+}
+
+interface UpdateMasteryData {
+  quality: number; // 0-5 rating
+  time_spent?: number;
+}
+
+interface Misconception {
+  id: string;
+  concept_id: string;
+  description: string;
+  severity: string;
+  identified_at: string;
+  resolved: boolean;
+}
+
+interface ReviewSchedule {
+  due_today: ConceptMastery[];
+  upcoming: ConceptMastery[];
+}
+
+interface SessionData {
+  concept_id: string;
+  duration_minutes: number;
+  quality_rating: number;
+  notes?: string;
+}
+
+interface LearningSession {
+  id: string;
+  concept_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_minutes: number;
+  quality_rating: number;
+}
+
+interface ChatResponse {
+  response: string;
+  sources: {
+    student_context: string[];
+    academic_sources: string[];
+  };
+  gaps_identified: string[];
+}
+
+interface GapAnalysis {
+  id: string;
+  concept: string;
+  gap_type: string;
+  severity: number;
+  recommendation: string;
+  created_at: string;
+}
+
+interface AddDocumentData {
+  title: string;
+  content: string;
+  subject: string;
+  source?: string;
+}
+
+interface AcademicDocument {
+  id: string;
+  title: string;
+  subject: string;
+  created_at: string;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  content: string;
+  relevance_score: number;
+}
+
+interface MicroLesson {
+  id: string;
+  title: string;
+  concept_id: string;
+  content_type: string;
+  content: string;
+  duration_minutes: number;
+  difficulty: string;
+}
+
+export const api = new ApiClient(API_BASE_URL);
+export type { 
+  LearningTwinProfile, 
+  ConceptMastery, 
+  Misconception,
+  ChatResponse,
+  GapAnalysis,
+  MicroLesson 
 };
-
-// Dual RAG API
-export const ragApi = {
-  // Query
-  query: (data: {
-    profile_id: string;
-    query: string;
-    session_id?: string;
-    concept_id?: string;
-    subject?: string;
-    topic?: string;
-  }) => api.post('/rag/query', data),
-  
-  // Explain
-  explain: (data: {
-    profile_id: string;
-    concept_id: string;
-    question?: string;
-    preferred_modality?: string;
-  }) => api.post('/rag/explain', data),
-  
-  // Student Contexts
-  addStudentContext: (profileId: string, data: any) => api.post(`/rag/contexts/${profileId}`, data),
-  getStudentContexts: (profileId: string) => api.get(`/rag/contexts/${profileId}`),
-  
-  // Academic Documents
-  addDocument: (data: any) => api.post('/rag/documents', data),
-  addDocumentsBulk: (documents: any[]) => api.post('/rag/documents/bulk', { documents }),
-  getDocuments: (subject?: string, topic?: string) => 
-    api.get('/rag/documents', { params: { subject, topic } }),
-  
-  // Gaps
-  getGaps: (profileId: string) => api.get(`/rag/gaps/${profileId}`),
-  resolveGap: (gapId: string, resolution: string) => 
-    api.post(`/rag/gaps/${gapId}/resolve`, { resolution_strategy: resolution }),
-  
-  // Search
-  search: (query: string, source?: string, subject?: string, topic?: string) =>
-    api.post('/rag/search', { query, source, subject, topic }),
-  
-  // Chat
-  getChatHistory: (profileId: string, sessionId?: string) =>
-    api.get(`/rag/chat/${profileId}`, { params: { session_id: sessionId } }),
-  submitFeedback: (messageId: string, wasHelpful: boolean) =>
-    api.post('/rag/chat/feedback', { message_id: messageId, was_helpful: wasHelpful }),
-  
-  // Stats
-  getStats: () => api.get('/rag/stats'),
-};
-
-// Micro Lessons API (Mock)
-export const lessonsApi = {
-  getLessons: (conceptId?: string) => api.get('/lessons', { params: { concept_id: conceptId } }),
-  getLesson: (lessonId: string) => api.get(`/lessons/${lessonId}`),
-  generateLesson: (data: {
-    profile_id: string;
-    concept_id: string;
-    preferred_modality?: string;
-    include_analogies?: boolean;
-    include_quiz?: boolean;
-  }) => api.post('/lessons/generate', data),
-  getDailyFeed: (profileId: string) => api.get(`/lessons/feed/${profileId}`),
-  updateProgress: (profileId: string, lessonId: string, data: any) =>
-    api.post(`/lessons/progress/${profileId}/${lessonId}`, data),
-  getProgress: (profileId: string) => api.get(`/lessons/progress/${profileId}`),
-};
-
-export default api;
