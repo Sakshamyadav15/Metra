@@ -34,5 +34,5 @@ httpx==0.26.0
 aiofiles==23.2.1
 
 # Speech Processing (for future 3.4)
-# speechrecognition==3.10.1
-# pydub==0.25.1
+SpeechRecognition==3.10.1
+pydub==0.25.1
